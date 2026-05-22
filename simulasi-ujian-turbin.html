@@ -1,0 +1,2247 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulasi Ujian Operasional Turbin</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <style>
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #f8fafc;
+    }
+    .fade-enter-active, .fade-leave-active {
+      transition: opacity 0.3s ease;
+    }
+    .fade-enter-from, .fade-leave-to {
+      opacity: 0;
+    }
+    /* Modern Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="h-screen w-screen flex overflow-hidden bg-slate-50 text-slate-800">
+
+    <!-- Sidebar -->
+    <aside class="w-72 bg-white border-r border-slate-200 flex flex-col z-20 transition-transform duration-300 transform"
+      :class="{'translate-x-0': sidebarOpen, '-translate-x-full': !sidebarOpen, 'md:translate-x-0': true, 'absolute md:relative': true, 'h-full': true}">
+      <div class="p-6 bg-slate-900 text-white flex justify-between items-center">
+        <div>
+          <h2 class="text-xl font-bold tracking-wide">E-Simulator Pro</h2>
+          <p class="text-xs text-slate-400 mt-1">
+            Ujian Operasional Turbin
+          </p>
+        </div>
+        <button @click="sidebarOpen = false" class="md:hidden text-slate-400 hover:text-white">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+        <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 px-2">
+          Modul Ujian
+        </div>
+
+        <button v-for="(cat, index) in categories" :key="cat.id"
+          @click="selectCategory(index)"
+          class="w-full flex flex-col p-4 rounded-2xl text-left transition-all duration-200 border"
+          :class="[
+          currentCategoryIndex === index ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white hover:bg-slate-50 border-slate-100'
+          ]">
+          <div class="flex items-center justify-between w-full mb-3">
+            <div class="font-semibold text-sm" :class="currentCategoryIndex === index ? 'text-indigo-700' : 'text-slate-700'">
+              <i :class="cat.icon" class="w-5 text-center mr-2 opacity-70"></i> {{ cat.name }}
+            </div>
+            <i v-if="cat.showResult" class="fas fa-check-circle text-emerald-500 text-lg"></i>
+          </div>
+
+          <!-- Progress Bar -->
+          <div class="w-full bg-slate-100 rounded-full h-1.5 mb-2 overflow-hidden">
+            <div class="h-full rounded-full transition-all duration-500"
+              :class="cat.showResult ? 'bg-emerald-500' : 'bg-indigo-500'"
+              :style="{ width: getCategoryProgress(cat) + '%' }"></div>
+          </div>
+          <div class="text-xs font-medium flex justify-between" :class="currentCategoryIndex === index ? 'text-indigo-500' : 'text-slate-400'">
+            <span>{{ cat.showResult ? 'Selesai' : 'Progress' }}</span>
+            <span>{{ cat.showResult ? cat.data.length : cat.currentIndex }} / {{ cat.data.length }}</span>
+          </div>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-full relative">
+      <!-- Mobile Header -->
+      <header class="md:hidden bg-white shadow-sm border-b border-slate-200 p-4 flex justify-between items-center z-10">
+        <div class="flex items-center">
+          <button @click="sidebarOpen = true" class="text-slate-500 hover:text-indigo-600 mr-3">
+            <i class="fas fa-bars text-xl"></i>
+          </button>
+          <h1 class="text-base font-bold text-slate-800 truncate">{{ currentCategory?.name || 'Dashboard' }}</h1>
+        </div>
+      </header>
+
+      <div class="flex-1 overflow-y-auto p-4 md:p-8 flex justify-center items-start pt-6 md:pt-10">
+
+        <!-- Welcome Screen -->
+        <div v-if="!hasStarted" class="max-w-2xl w-full bg-white rounded-3xl shadow-sm border border-slate-200 p-8 md:p-12 text-center mt-10">
+          <div class="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 transform rotate-3">
+            <i class="fas fa-layer-group text-3xl"></i>
+          </div>
+          <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 mb-4">Mulai Simulasi Ujian</h1>
+          <p class="text-slate-500 mb-8 leading-relaxed text-base">
+            Pilih jenis ujian yang ingin Anda kerjakan melalui sidebar. Setiap jenis soal akan memberikan perhitungan nilai secara independen di akhir sesinya.
+            <br><br>
+            <span class="inline-flex items-center bg-slate-50 text-slate-600 px-4 py-2 rounded-xl text-sm border border-slate-200 font-medium">
+              <i class="fas fa-info-circle text-indigo-500 mr-2"></i> Anda harus memilih jawaban yang tepat untuk lanjut ke soal berikutnya.
+            </span>
+          </p>
+          <button @click="startExam" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3.5 px-8 rounded-xl shadow-sm transition-all duration-200 transform hover:-translate-y-0.5">
+            Mulai Mengerjakan
+          </button>
+        </div>
+
+        <!-- Quiz Container -->
+        <transition name="fade" mode="out-in">
+          <div v-if="hasStarted && !currentCategory.showResult" :key="currentQuestion?.id + '-' + currentCategory.id" class="max-w-3xl w-full">
+
+            <!-- Header Status -->
+            <div class="flex justify-between items-end mb-6">
+              <div>
+                <span class="inline-flex items-center bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-lg mb-2">
+                  <i :class="currentCategory.icon" class="mr-1.5"></i> {{ currentCategory.name }}
+                </span>
+                <h3 class="text-slate-400 font-medium text-sm">
+                  Pertanyaan {{ currentCategory.currentIndex + 1 }} dari {{ currentCategory.data.length }}
+                </h3>
+              </div>
+            </div>
+
+            <!-- Question Card -->
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-10 mb-6 relative overflow-hidden">
+              <!-- Subtle top border accent -->
+              <div class="absolute top-0 left-0 w-full h-1 bg-indigo-500"></div>
+
+              <h2 class="text-xl md:text-2xl font-semibold text-slate-800 mb-8 leading-relaxed whitespace-pre-line">
+                {{ currentQuestion?.text }}
+              </h2>
+
+              <!-- Options Single Choice & True/False -->
+              <div v-if="currentCategory.type === 'single' || currentCategory.type === 'boolean'" class="space-y-3">
+                <button v-for="(opt, key) in currentQuestion?.options" :key="key"
+                  @click="selectSingleAnswer(key)"
+                  :disabled="currentCategory.currentWrongAttempts.includes(key)"
+                  class="w-full text-left p-4 rounded-2xl border-2 transition-all duration-200 flex items-center group relative overflow-hidden outline-none"
+                  :class="getOptionClass(key)">
+
+                  <span class="w-10 h-10 rounded-xl flex items-center justify-center font-bold mr-4 shrink-0 transition-colors duration-200 text-base"
+                    :class="getOptionIndicatorClass(key)">
+                    {{ currentCategory.type === 'boolean' ? (key === 'Benar' ? 'B' : 'S') : key }}
+                  </span>
+                  <span class="text-slate-700 text-base md:text-lg flex-1 font-medium transition-colors"
+                    :class="{'text-rose-700': currentCategory.currentWrongAttempts.includes(key)}">
+                    {{ opt }}
+                  </span>
+
+                  <!-- Feedback Icon -->
+                  <div class="absolute right-4 transition-all duration-300 transform"
+                    :class="currentCategory.currentWrongAttempts.includes(key) || (showCorrect && key === currentQuestion.answer) ? 'opacity-100 scale-100' : 'opacity-0 scale-50'">
+                    <i v-if="currentCategory.currentWrongAttempts.includes(key)" class="fas fa-times-circle text-rose-400 text-2xl"></i>
+                    <i v-else-if="showCorrect && key === currentQuestion.answer" class="fas fa-check-circle text-emerald-500 text-2xl"></i>
+                  </div>
+                </button>
+              </div>
+
+              <!-- Options Multiple Answers -->
+              <div v-else-if="currentCategory.type === 'multiple'" class="space-y-3">
+                <div class="bg-indigo-50/50 border border-indigo-100 p-4 rounded-2xl mb-6 flex items-start">
+                  <i class="fas fa-info-circle text-indigo-500 mt-0.5 mr-3 text-lg"></i>
+                  <p class="text-sm text-indigo-900 font-medium leading-relaxed">
+                    Pilih <b>semua</b> opsi yang benar. Jika ada opsi yang salah dipilih, Anda tidak bisa melanjutkannya sebelum semua opsi yang benar terpilih.
+                  </p>
+                </div>
+
+                <button v-for="(opt, key) in currentQuestion?.options" :key="key"
+                  @click="toggleMultipleAnswer(key)"
+                  :disabled="currentCategory.currentWrongAttempts.includes(key)"
+                  class="w-full text-left p-4 rounded-2xl border-2 transition-all duration-200 flex items-center group relative outline-none"
+                  :class="getMultiOptionClass(key)">
+
+                  <div class="w-7 h-7 rounded-lg border-2 flex items-center justify-center mr-4 shrink-0 transition-colors duration-200"
+                    :class="getMultiCheckboxClass(key)">
+                    <i v-if="currentCategory.currentSelectedMultiAnswers.includes(key) || currentCategory.currentWrongAttempts.includes(key) || (showCorrect && currentQuestion.answer.includes(key))"
+                      class="fas text-sm" :class="currentCategory.currentWrongAttempts.includes(key) ? 'fa-times' : 'fa-check'"></i>
+                  </div>
+                  <span class="font-bold mr-3 text-slate-400 text-base group-hover:text-indigo-400 transition-colors">{{ key }}.</span>
+                  <span class="text-slate-700 text-base md:text-lg flex-1 font-medium transition-colors"
+                    :class="{'text-rose-700': currentCategory.currentWrongAttempts.includes(key)}">
+                    {{ opt }}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </transition>
+
+        <!-- Specific Category Result Screen -->
+        <transition name="fade">
+          <div v-if="hasStarted && currentCategory.showResult" :key="'result-' + currentCategory.id" class="max-w-4xl w-full pb-10">
+
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 md:p-12 mb-8 text-center relative overflow-hidden">
+              <!-- Subtle modern background pattern -->
+              <div class="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-emerald-50 opacity-50 blur-3xl"></div>
+              <div class="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 rounded-full bg-indigo-50 opacity-50 blur-3xl"></div>
+
+              <div class="relative z-10">
+                <div class="inline-flex items-center justify-center w-20 h-20 bg-emerald-100 text-emerald-500 rounded-full mb-6">
+                  <i class="fas fa-check-double text-3xl"></i>
+                </div>
+                <h2 class="text-3xl font-extrabold text-slate-800 mb-2">Modul Diselesaikan!</h2>
+                <p class="text-slate-500 text-lg mb-8 font-medium">
+                  Anda telah menyelesaikan tes untuk <span class="text-indigo-600">{{ currentCategory.name }}</span>.
+                </p>
+
+                <div class="flex justify-center mb-2">
+                  <div class="bg-slate-50 border border-slate-200 px-12 py-6 rounded-3xl shadow-sm inline-block">
+                    <div class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">
+                      Nilai Modul Ini
+                    </div>
+                    <div class="text-6xl font-black" :class="getScoreColor(calculateCategoryScore(currentCategory))">
+                      {{ calculateCategoryScore(currentCategory) }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex flex-wrap justify-center gap-4 mt-6">
+                  <div class="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl text-sm font-semibold border border-emerald-100">
+                    Benar: {{ currentCategory.correctCount }} Soal
+                  </div>
+                  <div class="bg-rose-50 text-rose-700 px-4 py-2 rounded-xl text-sm font-semibold border border-rose-100">
+                    Salah Pertama: {{ currentCategory.data.length - currentCategory.correctCount }} Soal
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Review Wrong Answers specific to this category -->
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-10">
+              <h3 class="text-xl font-bold text-slate-800 mb-6 flex items-center border-b border-slate-100 pb-4">
+                <i class="fas fa-history mr-3 text-indigo-500"></i> Review Jawaban Salah
+              </h3>
+
+              <div v-if="currentCategory.wrongRecords.length > 0">
+                <div class="space-y-6">
+                  <div v-for="(record, index) in currentCategory.wrongRecords" :key="index" class="bg-slate-50 rounded-2xl p-5 md:p-6 border border-slate-100">
+                    <div class="flex flex-col md:flex-row items-start gap-4">
+                      <span class="bg-white text-rose-500 border border-rose-100 text-xs font-bold px-3 py-1.5 rounded-lg shrink-0 shadow-sm">
+                        Soal {{ record.questionNumber }}
+                      </span>
+                      <div class="flex-1 w-full">
+                        <p class="font-medium text-slate-700 mb-5 whitespace-pre-line leading-relaxed">
+                          {{ record.question }}
+                        </p>
+
+                        <div class="grid grid-cols-1 gap-3 text-sm">
+                          <div class="flex items-start text-rose-700 bg-rose-50/50 p-3.5 rounded-xl border border-rose-100">
+                            <i class="fas fa-times mt-1 mr-3 text-rose-400"></i>
+                            <div>
+                              <span class="font-bold block text-xs uppercase tracking-wider mb-1 opacity-60">Pilihan Anda</span>
+                              <span class="font-medium">{{ formatAnswerText(record.userWrongAnswers, record.options, currentCategory.type) }}</span>
+                            </div>
+                          </div>
+                          <div class="flex items-start text-emerald-800 bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-100">
+                            <i class="fas fa-check mt-1 mr-3 text-emerald-500"></i>
+                            <div>
+                              <span class="font-bold block text-xs uppercase tracking-wider mb-1 opacity-60">Jawaban Tepat</span>
+                              <span class="font-medium">{{ formatAnswerText(record.correctAnswer, record.options, currentCategory.type) }}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="bg-emerald-50 text-emerald-700 p-6 rounded-2xl text-center border border-emerald-100">
+                <i class="fas fa-star text-2xl mb-3 text-emerald-400 block"></i>
+                <span class="font-semibold text-lg">Luar biasa!</span><br>
+                Anda menjawab semua pertanyaan pada modul ini tanpa kesalahan.
+              </div>
+
+              <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+                <button @click="restartCurrentCategory" class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold py-3 px-6 rounded-xl transition-colors w-full sm:w-auto">
+                  <i class="fas fa-redo-alt mr-2"></i> Ulangi Modul Ini
+                </button>
+                <button @click="sidebarOpen = true" class="md:hidden bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors w-full sm:w-auto">
+                  <i class="fas fa-list-ul mr-2"></i> Pilih Modul Lain
+                </button>
+              </div>
+            </div>
+          </div>
+        </transition>
+
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const bankPilihanGanda = [{
+      id: 1,
+      text: "Disaat tekanan header air kondensat turun hingga(   )MPa maka pompa cadangan akan teraktif otomatis.",
+      options: {
+        A: "1.2",
+        B: "1.3",
+        C: "1.4",
+        D: "1.5"
+      },
+      answer: "D"
+    },
+      {
+        id: 2,
+        text: "Ketika vakum kondenser turun hingga(   )kPa maka turbin akan trip otomatis",
+        options: {
+          A: "-72",
+          B: "-75",
+          C: "-80",
+          D: "-82"
+        },
+        answer: "A"
+      },
+      {
+        id: 3,
+        text: "Ketika level hotwell terlalu rendah hingga (   )mm maka bisa menyebabkan trip pompa kondensat.",
+        options: {
+          A: "200",
+          B: "400",
+          C: "450",
+          D: "500"
+        },
+        answer: "B"
+      },
+      {
+        id: 4,
+        text: "Prinsip start HP heater dan LP heater adalah",
+        options: {
+          A: "Buka sisi air terlebih dulu, kemudian buka sisi uap",
+          B: "Buka sisi uap terlebih dulu, kemudian buka sisi air",
+          C: "Buka kedua sisi secara bersamaan",
+          D: "Tutup kedua sisi secara bersamaan"
+        },
+        answer: "A"
+      },
+      {
+        id: 5,
+        text: "Ketika vacuum kondenser turun hingga (   )kPa maka pompa cadangan akan teraktif otomatis.",
+        options: {
+          A: "-88",
+          B: "-85",
+          C: "-82",
+          D: "-80"
+        },
+        answer: "A"
+      },
+      {
+        id: 6,
+        text: "Mengukur suhu casing bearing bagian atas menggunakan termometer, suhu tidak melebihi (   ) ℃ suhu atmosfir",
+        options: {
+          A: "30",
+          B: "35",
+          C: "40",
+          D: "50"
+        },
+        answer: "C"
+      },
+      {
+        id: 7,
+        text: "Disaat poros B-FWP berputar balik/reverse turn maka harus",
+        options: {
+          A: "Tutup valve inlet",
+          B: "Tutup valve outlet",
+          C: "Segera menghidupkan pompa",
+          D: "Segera matikan pompa"
+        },
+        answer: "B"
+      },
+      {
+        id: 8,
+        text: "Temperatur oli turbin uap tidak boleh lebih rendah dari (   )saat distarter dalam keadaan panas.",
+        options: {
+          A: "30℃",
+          B: "38℃",
+          C: "35℃",
+          D: "29℃"
+        },
+        answer: "B"
+      },
+      {
+        id: 9,
+        text: "Selang waktu start 2 unit pompa air tidak dibawah (   ) menit",
+        options: {
+          A: "1 Menit",
+          B: "2 Menit",
+          C: "10 Menit",
+          D: "12 Menit"
+        },
+        answer: "C"
+      },
+      {
+        id: 10,
+        text: "Turning gear beroperasi normal, waktu operasi turning gear minimal (  ) jam",
+        options: {
+          A: "3",
+          B: "4",
+          C: "5",
+          D: "7"
+        },
+        answer: "B"
+      },
+      {
+        id: 11,
+        text: "Disaat salah satu suhu thrust pad naik hingga (  ) ℃, maka harus segera menghancurkan vakum dan emergency stop turbin",
+        options: {
+          A: "100",
+          B: "110",
+          C: "130",
+          D: "150"
+        },
+        answer: "B"
+      },
+      {
+        id: 12,
+        text: "Disaat tekanan minyak pelumas bearing turbin menurun hingga (  ) MPa, dan start auxiliary oil pump tidak berfungsi; maka harus segera emergency stop turbin.",
+        options: {
+          A: "0.049",
+          B: "0.49",
+          C: "0.37",
+          D: "0.22"
+        },
+        answer: "C"
+      },
+      {
+        id: 13,
+        text: "Sebelum sinkronisasi generator, perhatikan suhu exhaust LP cylinder seharusnya tidak melebihi (  )℃, dan aktifkan spray LP cylinder",
+        options: {
+          A: "60",
+          B: "70",
+          C: "80",
+          D: "90"
+        },
+        answer: "C"
+      },
+      {
+        id: 14,
+        text: "Sistem minyak pelumas turbin, suhu minyak umumnya dijaga kisaran",
+        options: {
+          A: "35℃～45℃",
+          B: "38℃～45℃",
+          C: "40℃～45℃",
+          D: "40℃～60℃"
+        },
+        answer: "A"
+      },
+      {
+        id: 15,
+        text: "Apabila suhu exhaust LP cylinder naik hingga (   ) ℃，maka harus melapor ke supervisor untuk emergency shutdown",
+        options: {
+          A: "100",
+          B: "110",
+          C: "121",
+          D: "155"
+        },
+        answer: "C"
+      },
+      {
+        id: 16,
+        text: "Disaat mengukur getaran bearing shell di lokal mencapai (    ) um alarm, harus segera menurunkan putaran turbin kecil",
+        options: {
+          A: "50",
+          B: "60",
+          C: "70",
+          D: "80"
+        },
+        answer: "A"
+      },
+      {
+        id: 17,
+        text: "Pada saat hot startup turbin, suhu minyak tidak boleh dibawah (  ) ℃",
+        options: {
+          A: "30",
+          B: "38",
+          C: "40",
+          D: "45"
+        },
+        answer: "B"
+      },
+      {
+        id: 18,
+        text: "Disaat rolling turbin, kevakuman kondenser mencapai",
+        options: {
+          A: "Nilai rated",
+          B: "60-70",
+          C: "40-50",
+          D: "20-30"
+        },
+        answer: "B"
+      },
+      {
+        id: 19,
+        text: "Uap main/reheat steam yang masuk ke dalam turbin dalam kondisi warm start dan hot start memiliki superheat minimal (  )℃",
+        options: {
+          A: "50",
+          B: "60",
+          C: "70",
+          D: "90"
+        },
+        answer: "A"
+      },
+      {
+        id: 20,
+        text: "Disaat motor terbakar dalam situasi apapun harus?",
+        options: {
+          A: "Melapor dulu",
+          B: "Ventilasi",
+          C: "Memadamkan api dengan air",
+          D: "Memutuskan sumber daya"
+        },
+        answer: "D"
+      },
+      {
+        id: 21,
+        text: "Nilai trip axial displacement turbin adalah ?",
+        options: {
+          A: "+1 atau-1.mm",
+          B: "+0.8mm",
+          C: "-1.28mm",
+          D: "-1.30mm"
+        },
+        answer: "A"
+      },
+      {
+        id: 22,
+        text: "Fungsi tangki minyak turbin adalah ?",
+        options: {
+          A: "Menyimpan minyak",
+          B: "Memisahkan kadar air",
+          C: "Menyimpan minyak dan memisahkan kadar air, udara, kotoran",
+          D: "Mendinginkan turbin"
+        },
+        answer: "C"
+      },
+      {
+        id: 23,
+        text: "Setelah pompa air sirkulasi dioperasikan, getaran maksimum pada pompa < (  ) mm.",
+        options: {
+          A: "0.03",
+          B: "0.05",
+          C: "0.07",
+          D: "0.1"
+        },
+        answer: "C"
+      },
+      {
+        id: 24,
+        text: "Disaat valve outlet pompa air sirkulasi tutup hingga (   ), stop pompa.",
+        options: {
+          A: "10",
+          B: "15",
+          C: "30",
+          D: "40"
+        },
+        answer: "B"
+      },
+      {
+        id: 25,
+        text: "Apabila dalam waktu (  ) detik arus pompa air sirkulasi melebihi nilai batas dan tidak dapat dipulihkan normal, harus segera stop pompa",
+        options: {
+          A: "10",
+          B: "15",
+          C: "30",
+          D: "40"
+        },
+        answer: "A"
+      },
+      {
+        id: 26,
+        text: "Pompa cadangan tidak boleh di start lebih dari (  ) kali, apabila tidak berhasil maka langsung lapor ke foreman, dan menginformasi ke staff elektrik untuk pemulihan",
+        options: {
+          A: "1",
+          B: "2",
+          C: "3",
+          D: "4"
+        },
+        answer: "B"
+      },
+      {
+        id: 27,
+        text: "Ketika putaran turbin sudah diatas (    ) r/min, maka jacking oil pump yang operasional akan stop otomatis.",
+        options: {
+          A: "540",
+          B: "1000",
+          C: "1200",
+          D: "1500"
+        },
+        answer: "C"
+      },
+      {
+        id: 28,
+        text: "Setelah putaran turbin turun hingga (   ) maka dapat mengaktifkan turning gear.",
+        options: {
+          A: "0",
+          B: "50r/min",
+          C: "120r/min",
+          D: "150r/min"
+        },
+        answer: "C"
+      },
+      {
+        id: 29,
+        text: "Turbin ini memiliki (   ) tahap pemanasan, 3 buah HP heater, 1 buah deaerator, 4 buah LP heater.",
+        options: {
+          A: "3",
+          B: "5",
+          C: "7",
+          D: "8"
+        },
+        answer: "D"
+      },
+      {
+        id: 30,
+        text: "Ketika steam turbin berputar, vakum kondensor ?",
+        options: {
+          A: "naik",
+          B: "turun",
+          C: "tidak berubah",
+          D: "tidak pasti"
+        },
+        answer: "B"
+      },
+      {
+        id: 31,
+        text: "Disaat stop HP Heater, suhu feed water ikut menurun, kecepatan turunnya <（  ）℃/min",
+        options: {
+          A: "1",
+          B: "2",
+          C: "3",
+          D: "5"
+        },
+        answer: "B"
+      },
+      {
+        id: 32,
+        text: "Disaat operasional vacuum pump harus mengecek suhu air outlet cooler secara berkala, nilai normal tidak melebihi （  ）℃.",
+        options: {
+          A: "30",
+          B: "35",
+          C: "40",
+          D: "45"
+        },
+        answer: "D"
+      },
+      {
+        id: 33,
+        text: "Arus pompa kondensasi turun menjadi nol, tekanan kondensat turun, aliran mencapai nol, dan alasan mengapa permukaan air kondensor naik adalah",
+        options: {
+          A: "Kegagalan pompa kondensasi",
+          B: "Penguapan pompa kondensasi",
+          C: "Pompa kondensasi menyuntikkan udara",
+          D: "Gangguan suplai daya pompa kondensasi"
+        },
+        answer: "D"
+      },
+      {
+        id: 34,
+        text: "Ketika menemukan level tangki minyak menurun, maka harus melakukan pengecekan keseluruhan terhadap sistem minyak, apabila menemukan adanya kebocoran di pipa minyak, maka harus mengambil strategi penanggulangan, disaat mendekati pipa bersuhu tinggi, harus melakukan tindakan.....?, dan segera melapor kepada atas yang bersangkutan.",
+        options: {
+          A: "Isolasi",
+          B: "Pencegahan kebakaran",
+          C: "Shutdown",
+          D: "Menurunkan beban"
+        },
+        answer: "B"
+      },
+      {
+        id: 35,
+        text: "Selama operasi normal turbin uap, vakum kondensor harus (  ) vakum di saluran masuk pompa kondensat",
+        options: {
+          A: "lebih besar dari",
+          B: "sama dengan",
+          C: "kurang dari",
+          D: "sedikit dari"
+        },
+        answer: "A"
+      },
+      {
+        id: 36,
+        text: "Start exhaust fan tangki minyak, tekanan negatif dalam tangki harus dijaga pada (  )KPa.",
+        options: {
+          A: "156～196",
+          B: "196～245",
+          C: "186～196",
+          D: "196～236"
+        },
+        answer: "B"
+      },
+      {
+        id: 37,
+        text: "Disaat cold startup, bangkitkan vakum dalam condenser, persyaratan kevacuman harus mencapai (  ) kPa kebawah.",
+        options: {
+          A: "15",
+          B: "20",
+          C: "25",
+          D: "40"
+        },
+        answer: "C"
+      },
+      {
+        id: 38,
+        text: "Pada saat cold startup, ketika sudah memastikan bahwa pipa gland seal steam sudah tidak ada air, maka aktifkan sumber uap auxiliary gland seal steam. Persyaratan tekanan header gland seal steam adalah 0.127 MPA, suhu (   ) ℃.",
+        options: {
+          A: "120℃～180",
+          B: "150℃～180",
+          C: "180℃～200",
+          D: "200℃～250"
+        },
+        answer: "A"
+      },
+      {
+        id: 39,
+        text: "Ketika membuka HP&IP governor valve dan turbin sudah rolling, perangkat turning gear akan (   ), apabila tidak maka harus segera mematikan turbin",
+        options: {
+          A: "Berhenti operasi",
+          B: "Terlepas Otomatis",
+          C: "Menyatu",
+          D: "Shutdown"
+        },
+        answer: "B"
+      },
+      {
+        id: 40,
+        text: "Ketika turbin uap mulai dalam keadaan dingin, suhu oli tidak lebih rendah dari?",
+        options: {
+          A: "30 ℃",
+          B: "38 ℃",
+          C: "35 ℃",
+          D: "25 ℃"
+        },
+        answer: "A"
+      },
+      {
+        id: 41,
+        text: "Ketika pompa pasokan air (  ) tidak kencang, sangat dilarang untuk menyalakan pompa pasokan air.",
+        options: {
+          A: "Pintu masuk",
+          B: "Pintu Keluar",
+          C: "Pintu Resirkulasi",
+          D: "Pintu Periksa keluar"
+        },
+        answer: "D"
+      },
+      {
+        id: 42,
+        text: "Tahap pemanasan mana yang paling kritis ?",
+        options: {
+          A: "Kecepatan rendah",
+          B: "Kecepatan sedang",
+          C: "Kecepatan tinggi",
+          D: "beban rendah"
+        },
+        answer: "B"
+      },
+      {
+        id: 43,
+        text: "Selama pengoperasian unit, air pengisian rendah harus?",
+        options: {
+          A: "Sesuaikan ketinggian air pada waktunya",
+          B: "Putus segera",
+          C: "Laporkan ke pimpinan",
+          D: "Cari tahu alasannya."
+        },
+        answer: "B"
+      },
+      {
+        id: 44,
+        text: "Saat unit bekerja, tekanan oli pelumas harus (  ) tekanan air",
+        options: {
+          A: "Lebih besar dari",
+          B: "kurang dari",
+          C: "setara",
+          D: "tidak pasti"
+        },
+        answer: "A"
+      },
+      {
+        id: 45,
+        text: "Saat unit bekerja, tekanan oli penyegel harus (  ) tekanan hidrogen",
+        options: {
+          A: "Lebih besar dari",
+          B: "kurang dari",
+          C: "setara",
+          D: "tidak pasti"
+        },
+        answer: "A"
+      },
+      {
+        id: 46,
+        text: "Fungsi Governor pada turbin adalah ?",
+        options: {
+          A: "Mengatur kecepatan turbin",
+          B: "Meningkatkan tekanan uap",
+          C: "Mengubah arah aliran fluida",
+          D: "Meningkatkan efesiensi turbin"
+        },
+        answer: "A"
+      },
+      {
+        id: 47,
+        text: "Apa yang Menyebabkan Kavitasi pada turbin ?",
+        options: {
+          A: "Tekanan Air Yang Terlalu Tinggi",
+          B: "Suhu Air Yang terlalu Rendah",
+          C: "Tekanan air yang turun dibawah tekanan Uap",
+          D: "Kecepatan Tekanan Turbin Yang Terlalu lambat"
+        },
+        answer: "C"
+      },
+      {
+        id: 48,
+        text: "Apa yang dimaksud proses kondensasi pada siklus Uap?",
+        options: {
+          A: "Perubahan cair menjadi uap",
+          B: "Perubahan cair menjadi padat",
+          C: "Perubahan Uap menjadi cair",
+          D: "Perubahan Padat menjadi cair"
+        },
+        answer: "C"
+      },
+      {
+        id: 49,
+        text: "Fungsi dari IP Heater (Intermediate Pressure Heater) pada sistem turbin ?",
+        options: {
+          A: "Meningkatkan tekanan uap utama",
+          B: "Memanaskan Air Umpan Sebelum Masuk ke Boiler",
+          C: "Meningkatkan Efesiensi Turbin dengan memanaskan uap antara Hp&Lp",
+          D: "Mengurangi Tekanan Uap Buang"
+        },
+        answer: "C"
+      },
+      {
+        id: 50,
+        text: "Volume Oli pelumas pada pompa booster dijaga pada level",
+        options: {
+          A: "3/4",
+          B: "4/5",
+          C: "2/3",
+          D: "1/3"
+        },
+        answer: "C"
+      },
+      {
+        id: 51,
+        text: "Tujuan utama dari keselamatan kerja adalah",
+        options: {
+          A: "Mengurangi tingkat kecelakaan",
+          B: "Mengurangi beban pekerja",
+          C: "Menambah pendapatan pekerja",
+          D: "Menyeimbangkan beban pekerja"
+        },
+        answer: "A"
+      },
+      {
+        id: 52,
+        text: "Dibawah ini adalah prinsip K3, kecuali?",
+        options: {
+          A: "Setiap pekerjaan bisa dilakukan dengan selamat",
+          B: "Kecelakaan pasti ada Penyebabnya",
+          C: "Penyebab kecelakaan harus di cegah/di tiadaan",
+          D: "Kecelakaan adalah takdir/Nasib"
+        },
+        answer: "D"
+      },
+      {
+        id: 53,
+        text: "Berikut ini merupakan langkah yang dilakukan untuk pencegahan terhadap penyakit, kecuali",
+        options: {
+          A: "Pemeriksaan kesehatan karyawan",
+          B: "Pendidikan kesehatan",
+          C: "Penjelasan sebelum bekerja",
+          D: "Golongan fisik"
+        },
+        answer: "D"
+      },
+      {
+        id: 54,
+        text: "Suatu peristiwa yang tidak disengaja seperti kejadian yang tidak diharapkan dan tidak terkontrol yang dapat menyebabkan kerusakan peralatan, material bahkan kecelakaan pada pekerja disebut:",
+        options: {
+          A: "Kerugian kerja",
+          B: "Kerusakan kerja",
+          C: "Fatal kerja",
+          D: "Kecelakaan kerja"
+        },
+        answer: "D"
+      },
+      {
+        id: 55,
+        text: "Tujuan pemeriksaan kesehatan sebelum bekerja (awal) adalah :",
+        options: {
+          A: "Agar tenaga kerja yang diterima berada dalam kondisi kesehatan yang lebih baik",
+          B: "Tidak mempunyai penyakit menular yang akan menular tenaga kerja lainnya",
+          C: "Sebagai bahan acuan dasar dalam penentuan riwayat kesehatan selama bekerja",
+          D: "Semua jawaban benar"
+        },
+        answer: "D"
+      },
+      {
+        id: 56,
+        text: "Pemeriksaan kesehatan tenaga kerja meliputi :",
+        options: {
+          A: "Pemeriksaan kesehatan awal dan berkala",
+          B: "Pemeriksaan kesehatan berkala dan berjangka",
+          C: "Pemeriksaan kesehatan awal, berkala dan khusus",
+          D: "Pemeriksaan kesehatan awal, berjangka dan khusus"
+        },
+        answer: "C"
+      },
+      {
+        id: 57,
+        text: "Penyebab langsung (immediate cause) dari kecelakaan adalah :",
+        options: {
+          A: "Tindakan dan Kondisi yang tidak aman",
+          B: "Faktor individu.",
+          C: "Faktor pekerjaan",
+          D: "Faktor pekerjaan dan Faktor individu"
+        },
+        answer: "A"
+      },
+      {
+        id: 58,
+        text: "Metode pemadaman kebakaran meliputi",
+        options: {
+          A: "Cooling, Smoothing, Breaking Chain Reaction And Starvation",
+          B: "Cooling, Smothering and Breaking Chain Reaction",
+          C: "Cooling, Smothering, Starvation, and Breaking Chain Reaction",
+          D: "Breaking News Reaction, Cooling, Starvation and Smothering"
+        },
+        answer: "C"
+      },
+      {
+        id: 59,
+        text: "Dibawah ini adalah alasan-alasan kenapa perusahaan harus mengelola safety (keselamatan kerja) ditempat kerja, yaitu:",
+        options: {
+          A: "Untuk mencegah cedera pada pekerja",
+          B: "Untuk meningkatkan keuntungan dan menjaga reputasi perusahaan",
+          C: "Untuk memenuhi peraturan perundangan yang berlaku",
+          D: "Semua jawaban benar"
+        },
+        answer: "D"
+      },
+      {
+        id: 60,
+        text: "Dibawah ini yang termasuk Kategori bahaya adalah :",
+        options: {
+          A: "Bahaya Ergonomi (stress fisik, Stress Kejiwaan)",
+          B: "Bahaya Mekanis, Bahaya Kimia, Bahaya Biologi",
+          C: "Bahaya Psikososial, Bahaya Tingkah Laku, Bahaya Kelistrikan",
+          D: "Semua jawaban benar"
+        },
+        answer: "D"
+      },
+      {
+        id: 61,
+        text: "Warna merah dalam simbol keselamatan kerja memiliki makna...",
+        options: {
+          A: "memberi perintah wajib untuk ditaati",
+          B: "memberi peringatan dan informasi waspada",
+          C: "menunjukkan perintah larangan, berhenti",
+          D: "memiliki arti dalam keadaan aman, dapat melintas"
+        },
+        answer: "C"
+      },
+      {
+        id: 62,
+        text: "Suatu kondisi dimana atau kapan munculnya sumber bahaya telah dapat dikendalikan ke tingkat yang memadai, ini adalah lawan dari bahaya (danger) merupakan pengertian dari",
+        options: {
+          A: "Keamanan",
+          B: "Alat pelindung diri",
+          C: "Kesehatan",
+          D: "Kepedulian"
+        },
+        answer: "A"
+      },
+      {
+        id: 63,
+        text: "Apa kepanjangan dari K3?",
+        options: {
+          A: "Keselamatan dan Keamanan Kerja",
+          B: "Keselamatan Kesehatan kerja",
+          C: "Kesehatan dan Keselamatan kerja",
+          D: "Kesehatan Keamanan bekerja"
+        },
+        answer: "C"
+      },
+      {
+        id: 64,
+        text: "Berikut adalah Hak Perusahaan, KECUALI…",
+        options: {
+          A: "Memberikan Perintah Kerja",
+          B: "Memerintahkan Kerja Lembur",
+          C: "Mutasi dan demosi",
+          D: "Menyampaikan Keluh Kesah Dan Saran kepada karyawan"
+        },
+        answer: "D"
+      },
+      {
+        id: 65,
+        text: "Pelanggaran yang termasuk tingkat pelanggaran Surat Peringatan Pertama dan Terakhir (SPPT) adalah",
+        options: {
+          A: "Mangkir 2 hari",
+          B: "Mengemudikan unit/alat milik perusahaan tanpa SIM dan SIMPER",
+          C: "Tidur selama jam kerja",
+          D: "Mangkir 5 hari berturut-turut"
+        },
+        answer: "B"
+      },
+      {
+        id: 66,
+        text: "Peraturan Perusahaan adalah peraturan tertulis yang dibuat oleh Perusahaan yang memuat pedoman diantaranya tentang",
+        options: {
+          A: "hak dan kewajiban Perusahaan dan Karyawan",
+          B: "Perselisihan hubungan industrial",
+          C: "Menciptakan lapangan kerja",
+          D: "Hak dan kewajiban Pemerintah"
+        },
+        answer: "A"
+      },
+      {
+        id: 67,
+        text: "Sebelum mogok kerja dilakukan, pemberitahuan dilakukan selambat-lambatnya berapa hari?",
+        options: {
+          A: "4 hari",
+          B: "5 hari",
+          C: "6 hari",
+          D: "7 hari"
+        },
+        answer: "D"
+      },
+      {
+        id: 68,
+        text: "Berikut ini yang termasuk Hak karyawan adalah, kecuali…",
+        options: {
+          A: "Imbal Jasa",
+          B: "Waktu Istirahat dan Cuti",
+          C: "Mengundurkan Diri",
+          D: "Membayar upah"
+        },
+        answer: "D"
+      }];
+
+    const bankMulti = [{
+      id: 1,
+      text: "Penyebab turbin mengalami over speed adalah?",
+      options: {
+        A: "sistem pengatur turbin uap tidak bekerja dengan baik",
+        B: "kualitas minyak turbin uap buruk",
+        C: "gevernor tidak berfungsi",
+        D: "pintu uap ekstraksi dan pintu pembuangan macet dan tidak dapat di tutup"
+      },
+      answer: ["A",
+        "B",
+        "C",
+        "D"]
+    },
+      {
+        id: 2,
+        text: "Fungsi pompa depan kelompok pompa feed pump adalah ?",
+        options: {
+          A: "Tingkatkan tekanan masuk pompa air umpan",
+          B: "Mencegah kavitasi pompa air umpan feed",
+          C: "Meningkatkan aliran air umpan feed",
+          D: "Tingkatkan tekanan outlet pompa air umpan feed"
+        },
+        answer: ["A",
+          "B"]
+      },
+      {
+        id: 3,
+        text: "Minyak dapat dituangkan melalui... antara tangki penyimpanan minyak dan tangki minyak utama",
+        options: {
+          A: "Pompa",
+          B: "Pompa minyak pelumas tangki minyak utama",
+          C: "Pompa vakum pemurnian minyak",
+          D: "Pompa masukan pemurnian minyak"
+        },
+        answer: ["A",
+          "D"]
+      },
+      {
+        id: 4,
+        text: "Saat ini, sumber pasokan air pemisah level cairan pompa vakum di pabrik kami adalah",
+        options: {
+          A: "Air tertutup",
+          B: "Air demineral",
+          C: "Kondensat",
+          D: "Air mendidih"
+        },
+        answer: ["B",
+          "C"]
+      },
+      {
+        id: 5,
+        text: "turbin uap dapat diperiksa menggunakan metode?",
+        options: {
+          A: "Eksentrik",
+          B: "Kecepatan putar",
+          C: "Getaran",
+          D: "Vakum"
+        },
+        answer: ["A",
+          "B",
+          "C",
+          "D"]
+      },
+      {
+        id: 6,
+        text: "Alasan peningkatan mendadak tekanan deaerator adalah ?",
+        options: {
+          A: "Pompa kondensat trip atau katup kontrol ketinggian air gagal dan asupan air terganggu",
+          B: "unit melebihi beban",
+          C: "tekanan tinggi terlalu besar",
+          D: "Asupan uap tidak mencukupi atau terputus"
+        },
+        answer: ["A",
+          "B",
+          "C"]
+      },
+      {
+        id: 7,
+        text: "Katup dapat dibagi menjadi... sesuai dengan tujuannya",
+        options: {
+          A: "Katup pelepas",
+          B: "Katup pemutus",
+          C: "Katup penyetel",
+          D: "Katup keamanan"
+        },
+        answer: ["B",
+          "C",
+          "D"]
+      },
+      {
+        id: 8,
+        text: "Peran akumulator yang dipasang pada pipa bertekanan tinggi adalah",
+        options: {
+          A: "Sesuaikan tekanan oli",
+          B: "Menyerap energi",
+          C: "Memancarkan energi",
+          D: "Pertahankan tekanan oli yang stabil"
+        },
+        answer: ["B",
+          "C",
+          "D"]
+      },
+      {
+        id: 9,
+        text: "Kopling generator turbin uap dibagi menjadi ?",
+        options: {
+          A: "Kopling kaku",
+          B: "Kopling fleksibel",
+          C: "Kopling semi-fleksibel",
+          D: "Kopling semi-kaku"
+        },
+        answer: ["A",
+          "B",
+          "C"]
+      },
+      {
+        id: 10,
+        text: "Alasan kecepatan turbin uap yang terlalu tinggi setelah penolakan beban adalah?",
+        options: {
+          A: "Katup pengatur tidak dapat ditutup secara normal",
+          B: "Karakteristik dinamis yang buruk dari sistem regulasi",
+          C: "Penyesuaian yang tidak tepat dari sistem penyesuaian",
+          D: "Tingkat perubahan kecepatan sistem penyesuaian terlalu kecil"
+        },
+        answer: ["A",
+          "B",
+          "C"]
+      },
+      {
+        id: 11,
+        text: "Apa saja jenis-jenis perawatan yang harus dilakukan pada turbin uap",
+        options: {
+          A: "Perawatan preventif",
+          B: "Perawatan Korektif",
+          C: "Perawatan Prediktif",
+          D: "Perawatan Rutin"
+        },
+        answer: ["A",
+          "B",
+          "C",
+          "D"]
+      },
+      {
+        id: 12,
+        text: "Komponen Utama turbin Uap adalah?",
+        options: {
+          A: "Bearing",
+          B: "Rotor",
+          C: "Katup",
+          D: "Stator"
+        },
+        answer: ["B",
+          "D"]
+      },
+      {
+        id: 13,
+        text: "Saat turbin mengalami low vacuum pada kondensor, tindakan yang dapat dilakukan operator adalah?",
+        options: {
+          A: "Menambah aliran uap ke turbin",
+          B: "Memeriksa kebocoran pada kondensor dan saluran pendingin air laut",
+          C: "Periksa tekanan pada kondensor",
+          D: "Menutup main steam valve"
+        },
+        answer: ["B",
+          "C"]
+      },
+      {
+        id: 14,
+        text: "Dibawah ini jenis-jenis turbin uap multi-tahap adalah?",
+        options: {
+          A: "Tipe reaksi",
+          B: "Tipe Impuls",
+          C: "Tipe gabungan tekanan",
+          D: "Tipe gabungan kecepatan"
+        },
+        answer: ["A",
+          "C",
+          "D"]
+      },
+      {
+        id: 15,
+        text: "Jenis-jenis bearing yang di gunakan dalam desain turbin uap adalah?",
+        options: {
+          A: "Bearing jurnal",
+          B: "Bearing Udara",
+          C: "Bearing thrust",
+          D: "Bearing pedestal"
+        },
+        answer: ["A",
+          "B"]
+      },
+      {
+        id: 16,
+        text: "Dalam kondisi apa saja pompa air kondensasi akan mengalami pemutusan operasi/trip?",
+        options: {
+          A: "Level hotwell 400mm",
+          B: "Valve outlet dan inlet pada pompa yang beroperasi tertutup penuh",
+          C: "Beban turbin Uap meningkat",
+          D: "Perlindungan listrik pada motor pompa air kondensasi tidak berfungsi"
+        },
+        answer: ["A",
+          "B",
+          "D"]
+      },
+      {
+        id: 17,
+        text: "Di mana saja yang menggunakan auxiliary steam?",
+        options: {
+          A: "Heater deaerator",
+          B: "Gland seal steam",
+          C: "steam small turbine",
+          D: "steam extinguishing"
+        },
+        answer: ["A",
+          "B",
+          "C",
+          "D"]
+      },
+      {
+        id: 18,
+        text: "Fungsi dari sealing oil pada turbin uap adalah?",
+        options: {
+          A: "Mencegah kebocoran uap dari turbin uap ke atmosfer",
+          B: "Mencegah masuknya udara ke dalam turbin uap",
+          C: "Mencegah korosi pada komponen-komponen turbin uap",
+          D: "Mengurangi panas yang dihasilkan oleh gesekan antara poros turbin uap dan bearing"
+        },
+        answer: ["A",
+          "B",
+          "C",
+          "D"]
+      },
+      {
+        id: 19,
+        text: "Dibawah ini tindakan darurat penghentian High Pressure Heater(HP Heater) adalah?",
+        options: {
+          A: "Operasikan Perangkat bypass air secara manual",
+          B: "Tutup katup masuk Inlet",
+          C: "Buka katup masuk Outlet",
+          D: "Sesuaikan beban Unit pembangkit"
+        },
+        answer: ["A",
+          "B",
+          "D"]
+      },
+      {
+        id: 20,
+        text: "Alasan Tingkat air daerator terlalu tinggi adalah ?",
+        options: {
+          A: "Jumlah pasokan air dari boiler tiba-tiba menjadi besar",
+          B: "Valve Pengisian air terbuka Lebar",
+          C: "Feed Water Pump error atau sistem pasokan air boiler salah buka",
+          D: "Valve pengaturan tingkat air tidak berfungsi"
+        },
+        answer: ["B",
+          "C",
+          "D"]
+      },
+      {
+        id: 21,
+        text: "Berikut Peyebab daerator bergetar adalah ?",
+        options: {
+          A: "Inlet air dan Uap tiba-tiba menambah atau menurun",
+          B: "Bagian dalam daerator masuk air atau perangkat semprotan error",
+          C: "Sejumlah besar Hidrofobik High pressure tiba-tiba masuk kedalam daerator",
+          D: "Uap yang masuk terputus"
+        },
+        answer: ["A",
+          "C"]
+      },
+      {
+        id: 22,
+        text: "Dibawah ini gejala awal Volume air kondensor penuh adalah ?",
+        options: {
+          A: "Tampilan tingkat air di DCS tinggi",
+          B: "Pengukur ketinggian air dilokasi menampilkan tingkat air kondensor tinggi",
+          C: "Alarm Posisi air kondensor tinggi",
+          D: "Vakum mulai menurun"
+        },
+        answer: ["A",
+          "B",
+          "C",
+          "D"]
+      },
+      {
+        id: 23,
+        text: "Turbin uap digunakan untuk ?",
+        options: {
+          A: "Menghasilkan listrik",
+          B: "Mengoperasikan pompa air",
+          C: "Mengatur Tekanan Uap",
+          D: "Menghailkan Panas"
+        },
+        answer: ["A",
+          "C"]
+      },
+      {
+        id: 24,
+        text: "Komponen yang harus diperiksa dalam perawatan turbin uap adalah ?",
+        options: {
+          A: "Rotor dan Stator turbin",
+          B: "Sistem Pendingin Dan Pelumas",
+          C: "Ball Bearing Pada turbin",
+          D: "Sistem Kontrol"
+        },
+        answer: ["A",
+          "B",
+          "C",
+          "D"]
+      },
+      {
+        id: 25,
+        text: "Dalam siklus pembangkitan listrik, uap yang telah melewati turbin akan menuju ke komponen lain. tujuan utama pengolahan uap setelah keluar dari turbin adalah ?",
+        options: {
+          A: "Didinginkan dan dikondensasi kembali menjadi air",
+          B: "Dipanaskan kembali",
+          C: "Dibuang langsung ke atmosfer",
+          D: "Dikirim ke kondensor untuk didinginkan"
+        },
+        answer: ["A",
+          "D"]
+      },
+      {
+        id: 26,
+        text: "Dibawah ini jenis-jenis pompa pelumas yang benar adalah ?",
+        options: {
+          A: "Pompa pelumas utama(Main lube oil)",
+          B: "Pompa pelumas bantu(auxiliary lube oil pump)",
+          C: "Turning gear oil pump",
+          D: "Pompa pelumas darurat(Emergency oil pump)"
+        },
+        answer: ["A",
+          "B",
+          "C",
+          "D"]
+      },
+      {
+        id: 27,
+        text: "Fungsi utama dari turbin uap dalam Pembangkit Listrik Tenaga Uap (PLTU) adalah untuk ?",
+        options: {
+          A: "Menghasilkan panas dari pembakaran bahan bakar.",
+          B: "Mengubah energi kinetik uap menjadi energi mekanik putar.",
+          C: "Mendinginkan uap setelah melewati generator.",
+          D: "Menggerakkan generator untuk menghasilkan listrik."
+        },
+        answer: ["B",
+          "D"]
+      },
+      {
+        id: 28,
+        text: "Gejala Kavitasi pada turbin kecil (feed water pump ) adalah ?",
+        options: {
+          A: "Perubahan arus pada pompa depan",
+          B: "Tekanan Outlet pompa menurun",
+          C: "Jumlah aliran atau debit air menurun",
+          D: "suara di dalam pompa tidak normal"
+        },
+        answer: ["A",
+          "B",
+          "C",
+          "D"]
+      },
+      {
+        id: 29,
+        text: "Peyebab-Penyebab kavitasi pada turbin turbin kecil (feed water pump ) adalah ?",
+        options: {
+          A: "Tekanan daerator menurun",
+          B: "Filter Inlet Pompa tersumbat",
+          C: "Valve inlet tertutup dalam jangka waktu yang lama",
+          D: "Jalur inlet pompa bocor"
+        },
+        answer: ["A",
+          "B",
+          "C",
+          "D"]
+      },
+      {
+        id: 30,
+        text: "Gejala tekanan lubrication oil rendah pada turbin kecil adalah?",
+        options: {
+          A: "Alarm tekanan oil pump rusak",
+          B: "Tekanan pelumas oil pada DCS menurun",
+          C: "Kebocoran oil cooler",
+          D: "Diameter tekanan oli dilapangan rendah"
+        },
+        answer: ["A",
+          "B",
+          "D"]
+      },
+      {
+        id: 31,
+        text: "Penyebab trip pada gland seal adalah ?",
+        options: {
+          A: "Gland fan kemasukkan air",
+          B: "Kebocoran slinder",
+          C: "Motor elektrik kehilangan listrik",
+          D: "personel salah pengoperasian"
+        },
+        answer: ["A",
+          "C",
+          "D"]
+      },
+      {
+        id: 32,
+        text: "Fungsi perangkat pengujian hidrogen adalah?",
+        options: {
+          A: "Menyaring kotoran dalam hidrogen",
+          B: "Mengeringkan hidrogen",
+          C: "Menganalisa kemurnian hidrogen",
+          D: "Membuang CO2 dan H2"
+        },
+        answer: ["A",
+          "C",
+          "D"]
+      },
+      {
+        id: 33,
+        text: "Berikut Fungsi stasiun oil (oil station) pada turbin uap adalah?",
+        options: {
+          A: "Mengatur tekanan dan aliran oli pelumas ke komponen-komponen turbin uap",
+          B: "Mengatur suhu oli pelumas untuk menjaga kinerja optimal",
+          C: "Menyediakan oli pelumas darurat dalam keadaan darurat",
+          D: "Mengmonitor kondisi oli pelumas dan memberikan peringatan jika terjadi masalah"
+        },
+        answer: ["A",
+          "B",
+          "C",
+          "D"]
+      },
+      {
+        id: 34,
+        text: "APAR yang disediakan di suatu lokasi hanya efektif untuk memadamkan benda yang baru terbakar karena ;",
+        options: {
+          A: "Jumlah APAR terbatas",
+          B: "Mampu memadamkan kebakaran",
+          C: "jangka semprot yang lama",
+          D: "Jarak semprot yang terbatas"
+        },
+        answer: ["A",
+          "D"]
+      },
+      {
+        id: 35,
+        text: "Contoh pemadaman api dengan cara Starvation adalah :",
+        options: {
+          A: "Menutup drum yang terbakar",
+          B: "Memadamkan api dengan air",
+          C: "Menghentikan supply bahan bakar",
+          D: "Memutuskan aliran bahan bakar yang menuju tempat kebakaran"
+        },
+        answer: ["C",
+          "D"]
+      },
+      {
+        id: 36,
+        text: "Berikut manakah yang merupakan prinsip K3...",
+        options: {
+          A: "Langkah keselamatan seadanya",
+          B: "Setiap pekerjaan bisa dilakukan dengan selama",
+          C: "Kecelakaan pasti ada penyebabnya",
+          D: "Penyebab kecelakaan harus di cegah/di tiadakan"
+        },
+        answer: ["B",
+          "C",
+          "D"]
+      },
+      {
+        id: 37,
+        text: "Cidera yang umum terjadi pada konstruksi bangunan yaitu....",
+        options: {
+          A: "Cidera akibat sengatan listrik",
+          B: "Cidera akibat kebisingan",
+          C: "Cidera akibat jatuh dari ketinggian",
+          D: "Cidera akibat mekanisme peralatan",
+          E: "Cidera akibat hantaman benda"
+        },
+        answer: ["A",
+          "C",
+          "D",
+          "E"]
+      },
+      {
+        id: 38,
+        text: "Contoh dibawah ini yang termasuk kondisi tidak aman adalah kecuali:",
+        options: {
+          A: "Perkakas atau peralatan rusak",
+          B: "Mengoperasikan kendaraan dengan ugal-ugalan",
+          C: "Bersenda gurau sambil bekerja",
+          D: "Tempat kerja Penuh Ceceran Oli"
+        },
+        answer: ["B",
+          "C"]
+      },
+      {
+        id: 39,
+        text: "Syarat-syarat helm untuk alat pelindung diri, yaitu...",
+        options: {
+          A: "Tahan benturan",
+          B: "Meredam kejutan",
+          C: "Tidak mudah terbakar",
+          D: "Mudah disesuaikan",
+          E: "Anti air"
+        },
+        answer: ["A",
+          "B",
+          "C",
+          "D"]
+      },
+      {
+        id: 40,
+        text: "Berikut yang bertanggung jawab terhadap K3 di tempat kerja yaitu...",
+        options: {
+          A: "Manajemen",
+          B: "Pengawas",
+          C: "Petugas K3",
+          D: "Investor",
+          E: "Masyarakat sekitar"
+        },
+        answer: ["A",
+          "B",
+          "C"]
+      },
+      {
+        id: 41,
+        text: "Berikut merupakan Hak dari karyawan yang diatur dalam aturan Perusahaan..",
+        options: {
+          A: "Karyawan berhak mendapatkan imbal jasa berupa upah atau yang lainnya atas pekerjaan yang dilakukannya",
+          B: "Karyawan berhak mendapatkan waktu istirahat kerja dan cuti sebagaimana diatur dalam Perjanjian Kerja Bersama/Peraturan Perusahaan ini",
+          C: "Masuk bekerja tidak mengikuti pengaturan kerja dari perusahaan",
+          D: "Karyawan berhak mendapatkan bantuan dari Perusahaan ketika mendapat permasalahan/ancaman",
+          E: "Karyawan berhak mengundurkan diri dengan menjalankan prosedur pengunduran diri sesuai dengan prosedur yang disepakati dalam Perjanjian Kerja Bersama/Peraturan Perusahaan ini"
+        },
+        answer: ["A",
+          "B",
+          "D",
+          "E"]
+      },
+      {
+        id: 42,
+        text: "Berikut merupakan kewajiban dari karyawan yang diatur dalam aturan Perusahaan...",
+        options: {
+          A: "Karyawan wajib tunduk dan mengikatkan diri pada Perjanjian Kerja Bersama/Peraturan Perusahaan ini",
+          B: "Karyawan wajib menaati instruksi, perintah, dan peraturan yang dikeluarkan oleh Perusahaan baik lisan maupun tertulis",
+          C: "Karyawan wajib hadir di waktu kerja dan lokasi kerja yang ditetapkan dan diperlukan oleh Perusahaan",
+          D: "Karyawan tidak wajib mengunakan alat pelindung diri selama bekerja",
+          E: "Karyawan wajib menjaga kerahasiaan upah yang diterimanya"
+        },
+        answer: ["A",
+          "B",
+          "C",
+          "E"]
+      },
+      {
+        id: 43,
+        text: "Berikut merupakan Hak dari Perusahaan yang diatur dalam aturan Perusahaan..",
+        options: {
+          A: "Perusahaan berhak memberikan perintah kerja kepada Karyawan",
+          B: "Perusahaan berhak menunda pembayaran gaji",
+          C: "Perusahaan berhak menentukan peraturan atau tata tertib kerja",
+          D: "Perusahaan berhak menetapkan hari dan jam kerja serta waktu istirahat kerja",
+          E: "Perusahaan berhak mengatur penggunaan waktu cuti dan izin meninggalkan pekerjaan bagi Karyawan"
+        },
+        answer: ["A",
+          "C",
+          "D",
+          "E"]
+      },
+      {
+        id: 44,
+        text: "Berikut merupakan kewajiban dari Perusahaan yang diatur dalam aturan Perusahaan",
+        options: {
+          A: "Perusahaan wajib membayarkan utang karyawan",
+          B: "Perusahaan wajib untuk membagikan dan menjelaskan Perjanjian Kerja Bersama/Peraturan Perusahaan ini kepada Karyawan",
+          C: "Perusahaan wajib menyelenggarakan sistem manajemen kerja dan membayar upah sesuai yang diperjanjikan kepada Karyawan",
+          D: "Perusahaan wajib menyesuaikan sistem manajemen kinerja, struktur dan skala upah apabila terdapat perubahan upah pada setiap tahunnya",
+          E: "Perusahaan wajib memberikan seragam kerja yang layak kepada Karyawan"
+        },
+        answer: ["B",
+          "C",
+          "D",
+          "E"]
+      },
+      {
+        id: 45,
+        text: "Berikut hal-hal yang perlu dilaksanakan ketika masuk bekerja",
+        options: {
+          A: "Karyawan wajib mengunakan alat pelindung diri selama bekerja",
+          B: "Karyawan wajib memakai id card",
+          C: "Karyawan wajib absen manual dan absen sidik jari/wajah",
+          D: "Karyawan wajib datang tepat waktu di lokasi kerja",
+          E: "Karyawan wajib meminjamkan APD rekan kerja"
+        },
+        answer: ["A",
+          "B",
+          "C",
+          "D"]
+      }];
+
+    const bankBenarSalah = [
+  {
+    id: 1,
+    text: "Disaat tekanan header air kondensat turun hingga 1.4MPa maka pompa cadangan akan start otomatis",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Salah"
+  },
+  {
+    id: 2,
+    text: "Turbin uap kecil mempunyai dua set sumber uap, yaitu uap ekstraksi empat tahap dan uap bantu",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 3,
+    text: "Arah putaran turbine driven B-FWP adalah searah jarum jam bila dilihat dari kepala turbin.",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 4,
+    text: "Arah putaran turbin adalah berlawanan arah jarum jam bila dilihat dari kepala turbin ke generator",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Salah"
+  },
+  {
+    id: 5,
+    text: "Disaat tekanan header condensate water turun hingga 1.5MPa maka pompa cadangan akan start otomatis",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 6,
+    text: "Dalam operasional deaerator, diperbolehkan kepenuhan air pada level air, dengan begini dapat menjamin level air cukup",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Salah"
+  },
+  {
+    id: 7,
+    text: "Dalam operasional deaerator tidak diperbolehkan kekurangan air, menghindari pemanasan berlebihan dan menyebabkan steam pump atau motor pump mengalami kavitasi dan rusak",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 8,
+    text: "Dalam proses pengoperasian pemanas deaerator, bisa mempercepat drainase pada pipa pemanasan, untuk menghemat waktu",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Salah"
+  },
+  {
+    id: 9,
+    text: "Level air hotwell dapat beroperasi di level tinggi 1200mm dalam jangka waktu yang panjang.",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Salah"
+  },
+  {
+    id: 10,
+    text: "Tekanan gland sealing steam tidak boleh terlalu tingi, untuk mencegah uap bocor keluar dan masuk ke dalam sistem minyak yang menyebabkan kualitas minyak memburuk",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Salah"
+  },
+  {
+    id: 11,
+    text: "Dalam inspeksi keseharian harus memperhatikan level minyak bearing, tidak boleh terlalu tinggi atau terlalu rendah, umumnya dijaga kisaran 1/3 sampai 2/3",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 12,
+    text: "Disaat start unit, tidak diperbolehkan mengirimkan uap ke gland seal disaat rotor turbin tidak berputar.",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 13,
+    text: "Level tangki air close loop dikontrol pada 1800-2700 mm, terlalu tinggi bisa menyebabkan overflow, terlalu rendah bisa menyebabkan kavitasi pada pompa sirkuasi air pendingin, dan suhu di setiap tempat yang menggunakan air close loop akan abnormal.",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 14,
+    text: "Sistem air sirkulasi menggunakan sistem air sirkulasi tunggal, setiap turbin dilengkapi dengan 2 unit circulating water pump, menggunakan media air laut sebagai pendingin",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 15,
+    text: "Sistem feed water dilengkapi dengan 4 unit turbine driven B-FWP, Komponen set pompa adalah turbin kecil pompa utama",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Salah"
+  },
+  {
+    id: 16,
+    text: "Fungsi sistem opened cooling water adalah sebagai penyuplai air pendingin ke heat exchanger untuk mendinginkan sistem air perdingin air tertutup",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 17,
+    text: "Gland sealing memiliki Uap supply dan self-sealing Pada kondisi turbin start-up, beban rendah dan trip, uap gland sealing menggunakan penyuplaian dari Uap Bantu",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 18,
+    text: "Dalam proses penggantian gas proteksi, tekanan dalam generator 0.02-0.03MPa, tidak boleh melebihi 0,1 MPa",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Salah"
+  },
+  {
+    id: 19,
+    text: "Daerator hanya dapat beroperasi pada tekanan konstan atau tekanan sliding",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 20,
+    text: "Bentuk pengaturan seri pada sistem bypass turbin menggunakan tekanan tinggi dan tekanan sedang Pengaturan seri dua tahap",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Salah"
+  },
+  {
+    id: 21,
+    text: "Turbin memiliki 3 unit HP heater, 1 unit deaerator, 4 unit LP heater",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 22,
+    text: "Pada saat mengaktifkan drain saluran pipa maupun drain pada slinder turbin kecil semuanya harus dalam kondisi tertutup",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Salah"
+  },
+  {
+    id: 23,
+    text: "Level hotwell 700-900 mm, bila terlalu tinggi bisa menyebabkan vakum turun. terlalu rendah sampai dengan 400 mm bisa menyebabkan trip condensate pump.",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 24,
+    text: "Sumber uap turbine driven B-FWP adalah Uap ektraksi keempat dan Uap Auxiliary.",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 25,
+    text: "Generator turbin uap tidak memerlukan perawatan rutin",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Salah"
+  },
+  {
+    id: 26,
+    text: "Simbol K3 yang berwarna kuning menandakan peringatan kewaspadaan",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 27,
+    text: "Upaya pencegahan lebih baik daripada upaya pengobatan terhadap kecelakaan atau akibat kerja, sebagai alternatif terakhir dari pencegahan dalam hirarki pengendalian bahaya adalah Alat Pelindung Diri.",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 28,
+    text: "Pekerja yang perlu waktu menyelesaikan pekerjaan 5-10 menit tidak perlu menggunakan APD.",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Salah"
+  },
+  {
+    id: 29,
+    text: "Tindakan pembetulan dan pencegahan yang mendasar merupakan salah satu keuntungan dari Inspeksi",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 30,
+    text: "Safety line kuning artinya area berbahaya dimana setiap orang yang melintas harus berhati-hati",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 31,
+    text: "Setiap kecelakaan yang terjadi, maka akan ada rekomendasi atau tindakan perbaikan dari kecelakaan tersebut, tujuan dari rekomendasi tindakan perbaikan adalah Agar kecelakaan Tersebut Tidak Terulang Kembali",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 32,
+    text: "Warna biru yang digunakan dalam sign menandakan “Kewajiban”",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 33,
+    text: "Peraturan Perusahaan adalah peraturan tertulis yang dibuat oleh Perusahaan yang memuat pedoman diantaranya tentang hak dan kewajiban Perusahaan dan Karyawan",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 34,
+    text: "Mangkir 2 hari dapat dikenakan sanski Surat Peringatan III",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Salah"
+  },
+  {
+    id: 35,
+    text: "Karyawan tidak dibenarkan mengoperasikan unit/alat tanpa memiliki SIMPER",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  },
+  {
+    id: 36,
+    text: "Mangkir 1 hari dapat dikenakan sanksi Surat Teguran",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Salah"
+  },
+  {
+    id: 37,
+    text: "Masa berlaku Surat Peringatan I, Surat Peringatan II, Surat Peringatan III adalah 6 bulan",
+    options: {
+      "Benar": "Pernyataan benar",
+      "Salah": "Pernyataan salah"
+    },
+    answer: "Benar"
+  }
+];
+
+    const {
+      createApp,
+      ref,
+      computed
+    } = Vue;
+
+    createApp({
+      setup() {
+        const sidebarOpen = ref(false);
+        const hasStarted = ref(false);
+        const showCorrect = ref(false);
+        const currentCategoryIndex = ref(0);
+
+        // Initialization
+        const getInitialCategories = () => [{
+          id: 'single', name: 'Pilihan Ganda', icon: 'fas fa-dot-circle', type: 'single', data: bankPilihanGanda,
+          showResult: false, correctCount: 0, currentIndex: 0,
+          currentWrongAttempts: [], currentSelectedMultiAnswers: [], firstAttemptWrong: false, wrongRecords: []
+        },
+          {
+            id: 'multiple', name: 'Multi Jawaban', icon: 'fas fa-check-square', type: 'multiple', data: bankMulti,
+            showResult: false, correctCount: 0, currentIndex: 0,
+            currentWrongAttempts: [], currentSelectedMultiAnswers: [], firstAttemptWrong: false, wrongRecords: []
+          },
+          {
+            id: 'boolean', name: 'Benar / Salah', icon: 'fas fa-balance-scale-right', type: 'boolean', data: bankBenarSalah,
+            showResult: false, correctCount: 0, currentIndex: 0,
+            currentWrongAttempts: [], currentSelectedMultiAnswers: [], firstAttemptWrong: false, wrongRecords: []
+          }];
+
+        const categories = ref(getInitialCategories());
+
+        // Computed Properties
+        const currentCategory = computed(() => categories.value[currentCategoryIndex.value]);
+        const currentQuestion = computed(() => {
+          if (!currentCategory.value || currentCategory.value.showResult) return null;
+          return currentCategory.value.data[currentCategory.value.currentIndex];
+        });
+
+        // Methods
+        const startExam = () => hasStarted.value = true;
+
+        const selectCategory = (index) => {
+          currentCategoryIndex.value = index;
+          sidebarOpen.value = false;
+          showCorrect.value = false;
+        };
+
+        const getCategoryProgress = (cat) => {
+          if (cat.showResult) return 100;
+          return (cat.currentIndex / cat.data.length) * 100;
+        };
+
+        const calculateCategoryScore = (cat) => {
+          if (!cat || cat.data.length === 0) return 0;
+          return Math.round((cat.correctCount / cat.data.length) * 100);
+        };
+
+        const getScoreColor = (score) => {
+          if (score >= 80) return 'text-emerald-500';
+          if (score >= 60) return 'text-amber-500';
+          return 'text-rose-500';
+        };
+
+        const recordWrongAnswer = (userWrongKeys) => {
+          const cat = currentCategory.value;
+          if (!cat.firstAttemptWrong) {
+            cat.firstAttemptWrong = true;
+
+            cat.wrongRecords.push({
+              questionNumber: cat.currentIndex + 1,
+              question: currentQuestion.value.text,
+              options: currentQuestion.value.options,
+              correctAnswer: currentQuestion.value.answer,
+              userWrongAnswers: Array.isArray(userWrongKeys) ? [...userWrongKeys]: [userWrongKeys]
+            });
+          }
+        };
+
+        const moveToNextQuestion = () => {
+          showCorrect.value = true;
+          const cat = currentCategory.value;
+
+          if (!cat.firstAttemptWrong) {
+            cat.correctCount++;
+          }
+
+          // Modern fast transition (500ms instead of 800ms)
+          setTimeout(() => {
+            if (cat.currentIndex < cat.data.length - 1) {
+              cat.currentIndex++;
+              cat.currentWrongAttempts = [];
+              cat.currentSelectedMultiAnswers = [];
+              cat.firstAttemptWrong = false;
+              showCorrect.value = false;
+            } else {
+              // Selesai kategori ini, tampilkan hasilnya
+              cat.showResult = true;
+              showCorrect.value = false;
+            }
+          },
+            500);
+        };
+
+        // Logic Pilihan Ganda & Benar Salah
+        const selectSingleAnswer = (key) => {
+          if (showCorrect.value) return;
+          const cat = currentCategory.value;
+          const q = currentQuestion.value;
+
+          if (key === q.answer) {
+            moveToNextQuestion();
+          } else {
+            if (!cat.currentWrongAttempts.includes(key)) {
+              cat.currentWrongAttempts.push(key);
+              recordWrongAnswer(key);
+            }
+          }
+        };
+
+        // Logic Multi Jawaban
+        const toggleMultipleAnswer = (key) => {
+          if (showCorrect.value) return;
+          const cat = currentCategory.value;
+          const q = currentQuestion.value;
+          const correctAnsArray = q.answer;
+
+          if (cat.currentWrongAttempts.includes(key)) return;
+
+          // Salah pilih
+          if (!correctAnsArray.includes(key)) {
+            cat.currentWrongAttempts.push(key);
+            recordWrongAnswer([...cat.currentSelectedMultiAnswers, key]);
+            return;
+          }
+
+          // Toggle jawaban benar
+          const index = cat.currentSelectedMultiAnswers.indexOf(key);
+          if (index > -1) {
+            cat.currentSelectedMultiAnswers.splice(index, 1);
+          } else {
+            cat.currentSelectedMultiAnswers.push(key);
+          }
+
+          // Cek jika sudah benar semua
+          if (cat.currentSelectedMultiAnswers.length === correctAnsArray.length) {
+            const isAllCorrect = cat.currentSelectedMultiAnswers.every(val => correctAnsArray.includes(val));
+            if (isAllCorrect) {
+              moveToNextQuestion();
+            }
+          }
+        };
+
+        // Styling helpers (Modern Colors)
+        const getOptionClass = (key) => {
+          const cat = currentCategory.value;
+          if (!cat || !currentQuestion.value) return '';
+
+          if (showCorrect.value && key === currentQuestion.value.answer) {
+            return 'border-emerald-400 bg-emerald-50 shadow-sm';
+          }
+          if (cat.currentWrongAttempts.includes(key)) {
+            return 'border-rose-200 bg-rose-50/30 opacity-70 cursor-not-allowed';
+          }
+          return 'border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 bg-white';
+        };
+
+        const getOptionIndicatorClass = (key) => {
+          const cat = currentCategory.value;
+          if (!cat || !currentQuestion.value) return '';
+
+          if (showCorrect.value && key === currentQuestion.value.answer) {
+            return 'bg-emerald-500 text-white';
+          }
+          if (cat.currentWrongAttempts.includes(key)) {
+            return 'bg-rose-100 text-rose-500';
+          }
+          return 'bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600';
+        };
+
+        const getMultiOptionClass = (key) => {
+          const cat = currentCategory.value;
+          if (!cat || !currentQuestion.value) return '';
+
+          if (showCorrect.value && currentQuestion.value.answer.includes(key)) {
+            return 'border-emerald-400 bg-emerald-50 shadow-sm';
+          }
+          if (cat.currentWrongAttempts.includes(key)) {
+            return 'border-rose-200 bg-rose-50/30 opacity-70 cursor-not-allowed';
+          }
+          if (cat.currentSelectedMultiAnswers.includes(key)) {
+            return 'border-indigo-400 bg-indigo-50/50';
+          }
+          return 'border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 bg-white';
+        };
+
+        const getMultiCheckboxClass = (key) => {
+          const cat = currentCategory.value;
+          if (!cat || !currentQuestion.value) return '';
+
+          if (showCorrect.value && currentQuestion.value.answer.includes(key)) {
+            return 'bg-emerald-500 border-emerald-500 text-white';
+          }
+          if (cat.currentWrongAttempts.includes(key)) {
+            return 'bg-rose-400 border-rose-400 text-white';
+          }
+          if (cat.currentSelectedMultiAnswers.includes(key)) {
+            return 'bg-indigo-500 border-indigo-500 text-white';
+          }
+          return 'border-slate-300 bg-slate-50 group-hover:border-indigo-300 text-transparent';
+        };
+
+        const formatAnswerText = (answerKey, optionsObj, type) => {
+          if (type === 'multiple' && Array.isArray(answerKey)) {
+            return answerKey.map(k => `${k}. ${optionsObj[k]}`).join(' | ');
+          }
+          if (type === 'boolean' && (answerKey === 'Benar' || answerKey === 'Salah')) return answerKey;
+
+          return `${answerKey}. ${optionsObj[answerKey]}`;
+        };
+
+        const restartCurrentCategory = () => {
+          const cat = currentCategory.value;
+          cat.showResult = false;
+          cat.correctCount = 0;
+          cat.currentIndex = 0;
+          cat.currentWrongAttempts = [];
+          cat.currentSelectedMultiAnswers = [];
+          cat.firstAttemptWrong = false;
+          cat.wrongRecords = [];
+        };
+
+        return {
+          sidebarOpen,
+          hasStarted,
+          categories,
+          currentCategoryIndex,
+          currentCategory,
+          currentQuestion,
+          showCorrect,
+          startExam,
+          selectCategory,
+          selectSingleAnswer,
+          toggleMultipleAnswer,
+          getCategoryProgress,
+          getOptionClass,
+          getOptionIndicatorClass,
+          getMultiOptionClass,
+          getMultiCheckboxClass,
+          calculateCategoryScore,
+          getScoreColor,
+          formatAnswerText,
+          restartCurrentCategory
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
