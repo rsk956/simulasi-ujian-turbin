@@ -1,52 +1,154 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Situs Sedang Dalam Perbaikan</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        // KONTROL STATUS PERBAIKAN DI SINI
-        // true  = Perbaikan ON (Tampilkan halaman ini)
-        // false = Perbaikan OFF (Langsung buka halaman utama)
-        const IS_MAINTENANCE = false; 
-
-        // Nama file halaman utama Anda di GitHub Pages
-        const MAIN_PAGE_URL = 'turbinV1.html'; 
-
-        if (!IS_MAINTENANCE) {
-            window.location.replace(MAIN_PAGE_URL);
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Akses Dibatasi - Masa Trial Berakhir</title>
+  <!-- Menggunakan font Inter untuk tampilan yang sangat clean dan modern -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter',
+              'sans-serif'],
+          }
         }
-    </script>
-    <style>
-        /* Mencegah kedipan konten sebelum redirect selesai */
-        body { display: none; }
-    </style>
+      }
+    }
+    // KONTROL STATUS PERBAIKAN DI SINI
+    // true  = Perbaikan ON (Tampilkan halaman ini)
+    // false = Perbaikan OFF (Langsung buka halaman utama)
+    const IS_MAINTENANCE = true;
+
+    // Nama file halaman utama Anda di GitHub Pages
+    const MAIN_PAGE_URL = 'boilerV1.html';
+
+    if (!IS_MAINTENANCE) {
+      window.location.replace(MAIN_PAGE_URL);
+    }
+  </script>
+  <style>
+    /* Mencegah kedipan konten sebelum redirect selesai */
+    body {
+      display: none;
+    }
+  </style>
+  <style>
+    /* Memastikan selalu 1 layar dan tidak bisa di-scroll */
+    body {
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #FAFAFA;
+      /* Abu-abu sangat muda/bersih */
+    }
+  </style>
 </head>
-<body class="bg-gray-50 min-h-screen flex flex-col justify-between p-6 md:p-12 font-sans text-gray-900 antialiased selection:bg-gray-200">
+<body class="text-gray-800 antialiased selection:bg-blue-100 selection:text-blue-900">
 
-    <div class="text-xs uppercase tracking-widest font-semibold text-gray-400">
-        Status Sistem
+  <!-- Kontainer Utama -->
+  <div class="w-full max-w-[420px] px-6">
+
+    <!-- Kartu Putih -->
+    <div class="bg-white rounded-[24px] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100/80 text-center">
+
+      <!-- Ikon Minimalis -->
+      <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+        </svg>
+      </div>
+
+      <!-- Teks Informasi -->
+      <h1 class="text-[22px] font-semibold text-gray-900 tracking-tight mb-2">
+        Masa Trial Berakhir
+      </h1>
+      <p class="text-sm text-gray-500 leading-relaxed mb-8">
+        Waktu akses gratis Anda telah habis. Silakan lakukan aktivasi pembayaran untuk kembali menggunakan layanan web ini.
+      </p>
+
+      <!-- Kotak Pembayaran yang Clean -->
+      <div class="bg-gray-50/50 rounded-2xl p-1.5 mb-8 border border-gray-100">
+        <div class="bg-white rounded-xl p-4 flex items-center justify-between shadow-sm border border-gray-50">
+          <div class="flex items-center gap-3">
+            <span class="font-medium text-gray-800 text-[17px] tracking-wide" id="nomor-dana">
+              0813 5647 1168
+            </span>
+          </div>
+
+          <!-- Tombol Salin -->
+          <button onclick="salinNomor()" id="btn-salin" class="text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors duration-200">
+            Salin
+          </button>
+        </div>
+      </div>
+
+      <!-- Tombol Aksi -->
+      <div class="flex flex-col gap-3">
+        <a href="https://wa.me/6281356471168?text=Halo,%20saya%20ingin%20mengaktifkan%20kembali%20akses%20web%20saya.%20Saya%20sudah%20melakukan%20transfer%20ke%20DANA."
+          target="_blank"
+          class="w-full bg-gray-900 hover:bg-black text-white text-sm font-medium py-3.5 rounded-xl transition-all duration-200 shadow-md shadow-gray-900/10 flex items-center justify-center gap-2">
+          Konfirmasi via WhatsApp
+        </a>
+
+        <button onclick="window.location.reload();" class="text-xs text-gray-400 hover:text-gray-600 font-medium py-2 transition-colors">
+          Sudah aktivasi? Muat ulang halaman
+        </button>
+      </div>
+
     </div>
 
-    <div class="max-w-xl my-auto">
-        <h1 class="text-4xl md:text-5xl font-light tracking-tight text-gray-900 mb-6 leading-tight">
-            Kami sedang melakukan beberapa pembaruan.
-        </h1>
-        <p class="text-gray-500 text-base md:text-lg mb-8 leading-relaxed max-w-md">
-            Halaman ini sedang ditingkatkan untuk memberikan pengalaman yang lebih baik. Silakan kembali lagi dalam beberapa saat.
-        </p>
+    <!-- Watermark/Footer sangat halus di luar kotak -->
+    <div class="text-center mt-6">
+      <span class="text-[11px] text-gray-400 font-medium">Akses Terkunci &copy; Sistem Keamanan Web</span>
     </div>
+  </div>
 
-    <div class="text-xs text-gray-400 font-light">
-        &copy; 2026 Seluruh hak cipta dilindungi.
-    </div>
+  <!-- Script untuk fitur Copy Paste -->
+  <script>
+    function salinNomor() {
+      // Mengambil teks nomor tanpa spasi
+      const nomor = "081356471168";
 
-    <script>
-        // Tampilkan halaman hanya jika memang sedang maintenance
-        if (IS_MAINTENANCE) {
-            document.body.style.display = 'flex';
-        }
-    </script>
+      // Membuat elemen textarea sementara untuk proses copy
+      const tempInput = document.createElement("input");
+      tempInput.value = nomor;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand("copy");
+      document.body.removeChild(tempInput);
+
+      // Mengubah teks tombol sebagai indikator sukses
+      const btn = document.getElementById('btn-salin');
+      const teksAsli = btn.innerText;
+
+      btn.innerText = "Tersalin!";
+      btn.classList.replace("text-blue-600", "text-emerald-600");
+      btn.classList.replace("bg-blue-50", "bg-emerald-50");
+      btn.classList.replace("hover:bg-blue-100", "hover:bg-emerald-100");
+
+      // Mengembalikan ke teks semula setelah 2 detik
+      setTimeout(() => {
+        btn.innerText = teksAsli;
+        btn.classList.replace("text-emerald-600", "text-blue-600");
+        btn.classList.replace("bg-emerald-50", "bg-blue-50");
+        btn.classList.replace("hover:bg-emerald-100", "hover:bg-blue-100");
+      }, 2000);
+    }
+
+    // Tampilkan halaman hanya jika memang sedang maintenance
+    if (IS_MAINTENANCE) {
+      document.body.style.display = 'flex';
+    }
+  </script>
 </body>
 </html>
